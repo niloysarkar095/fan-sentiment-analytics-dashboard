@@ -139,7 +139,7 @@ def fetch_basic_live_match(couch, fix, league, is_preview=False):
         if away_id in db_scores:
             global_away = db_scores[away_id].get("average_sentiment", 0.0)
             
-    return {
+    res = {
         "status": "active",
         "fixture_id": fix.get("_id"),
         "match_time": fix.get("match_time"),
@@ -148,6 +148,11 @@ def fetch_basic_live_match(couch, fix, league, is_preview=False):
         "global_sway": {"home": global_home, "away": global_away},
         "is_preview": is_preview
     }
+    if "prediction_snapshot" in fix:
+        res["prediction_snapshot"] = fix["prediction_snapshot"]
+    return res
+
+
 
 @app.get("/api/match/live")
 def get_live_match():
