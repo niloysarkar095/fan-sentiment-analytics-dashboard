@@ -246,3 +246,11 @@ def get_match_history():
     # Sort by match_time descending
     history.sort(key=lambda x: x.get('match_time', ''), reverse=True)
     return history
+
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    # Read Render's dynamic port environment variable, default to 8000 for local PC use
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
