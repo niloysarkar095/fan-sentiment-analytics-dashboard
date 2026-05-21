@@ -4,8 +4,9 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: couchdb-db
-    runtime: docker
-    dockerImage: couchdb:3.3
+    runtime: image
+    image:
+      url: docker.io/library/couchdb:3.3
     plan: starter # A starter or standard plan is required to attach a persistent disk
     envVars:
       - key: COUCHDB_USER
