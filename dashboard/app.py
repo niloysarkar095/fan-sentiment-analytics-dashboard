@@ -19,6 +19,8 @@ except ModuleNotFoundError:
     pass
 # from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
+CLOUD_CACHE = {"live": None, "upcoming": [], "history": []}
+
 if config and hasattr(config, "COUCHDB_URL"):
     COUCHDB_URL = config.COUCHDB_URL
 else:
@@ -70,43 +72,49 @@ def startup_event():
 def read_root():
     return FileResponse(os.path.join(static_dir, "index.html"))
 
+@app.post("/api/update-cloud-cache")
+async def update_cloud_cache(payload: dict):
+    global CLOUD_CACHE
+    CLOUD_CACHE = payload
+    return {"status": "Data synced successfully"}
+
 @app.get("/api/scores")
 def get_scores():
     try:
         couch = couchdb.Server(COUCHDB_URL)
+        couch.version() # Force connection check
+        payload = {
+            "AFL": [],
+            "IPL": []
+        }
+
+        # Fetch AFL scores
+        if "afl_scores" in couch:
+            db_afl = couch["afl_scores"]
+            for doc_id in db_afl:
+                if not doc_id.startswith('_design/'):
+                    doc = db_afl[doc_id]
+                    payload["AFL"].append({
+                        "team_name": doc.get("team_name", "Unknown"),
+                        "average_sentiment": doc.get("average_sentiment", 0.0),
+                        "comment_count": doc.get("comment_count", 0)
+                    })
+                    
+        # Fetch IPL scores gracefully
+        if "ipl_scores" in couch:
+            db_ipl = couch["ipl_scores"]
+            for doc_id in db_ipl:
+                if not doc_id.startswith('_design/'):
+                    doc = db_ipl[doc_id]
+                    payload["IPL"].append({
+                        "team_name": doc.get("team_name", "Unknown"),
+                        "average_sentiment": doc.get("average_sentiment", 0.0),
+                        "comment_count": doc.get("comment_count", 0)
+                    })
+
+        return payload
     except Exception as e:
-        return {"error": f"Failed to connect to CouchDB: {e}"}
-
-    payload = {
-        "AFL": [],
-        "IPL": []
-    }
-
-    # Fetch AFL scores
-    if "afl_scores" in couch:
-        db_afl = couch["afl_scores"]
-        for doc_id in db_afl:
-            if not doc_id.startswith('_design/'):
-                doc = db_afl[doc_id]
-                payload["AFL"].append({
-                    "team_name": doc.get("team_name", "Unknown"),
-                    "average_sentiment": doc.get("average_sentiment", 0.0),
-                    "comment_count": doc.get("comment_count", 0)
-                })
-                
-    # Fetch IPL scores gracefully
-    if "ipl_scores" in couch:
-        db_ipl = couch["ipl_scores"]
-        for doc_id in db_ipl:
-            if not doc_id.startswith('_design/'):
-                doc = db_ipl[doc_id]
-                payload["IPL"].append({
-                    "team_name": doc.get("team_name", "Unknown"),
-                    "average_sentiment": doc.get("average_sentiment", 0.0),
-                    "comment_count": doc.get("comment_count", 0)
-                })
-
-    return payload
+        return CLOUD_CACHE.get("scores", {"AFL": [], "IPL": []})
 
 def fetch_basic_live_match(couch, fix, league, is_preview=False):
     home_id = fix.get("home_team")
@@ -136,121 +144,121 @@ def fetch_basic_live_match(couch, fix, league, is_preview=False):
 def get_live_match():
     try:
         couch = couchdb.Server(COUCHDB_URL)
-    except Exception as e:
-        return {"error": f"Failed to connect to CouchDB: {e}"}
+        couch.version() # Force connection check
+        payload = {"AFL": None, "IPL": None}
         
-    payload = {"AFL": None, "IPL": None}
-    
-    if "match_fixtures" not in couch:
-        return payload
+        if "match_fixtures" not in couch:
+            return payload
+            
+        db_fixtures = couch["match_fixtures"]
         
-    db_fixtures = couch["match_fixtures"]
-    
-    afl_active = []
-    ipl_active = []
-    
-    for doc_id in db_fixtures:
-        if not doc_id.startswith('_design/'):
-            doc = db_fixtures[doc_id]
-            if doc.get('status') == 'active':
-                if doc.get('league') == 'AFL':
-                    afl_active.append(doc)
-                elif doc.get('league') == 'IPL':
-                    ipl_active.append(doc)
+        afl_active = []
+        ipl_active = []
+        
+        for doc_id in db_fixtures:
+            if not doc_id.startswith('_design/'):
+                doc = db_fixtures[doc_id]
+                if doc.get('status') == 'active':
+                    if doc.get('league') == 'AFL':
+                        afl_active.append(doc)
+                    elif doc.get('league') == 'IPL':
+                        ipl_active.append(doc)
+                        
+        # Sort active matches by match_time ascending
+        afl_active.sort(key=lambda x: x.get('match_time', ''))
+        ipl_active.sort(key=lambda x: x.get('match_time', ''))
+        
+        now = datetime.now()
+        two_hours_limit = timedelta(hours=2)
+        
+        active_afl = None
+        is_afl_preview = False
+        for doc in afl_active:
+            mtime_str = doc.get('match_time')
+            if mtime_str:
+                try:
+                    mtime = datetime.fromisoformat(mtime_str)
+                    if now >= mtime or (mtime - now) <= two_hours_limit:
+                        active_afl = doc
+                        break
+                except Exception:
+                    continue
                     
-    # Sort active matches by match_time ascending
-    afl_active.sort(key=lambda x: x.get('match_time', ''))
-    ipl_active.sort(key=lambda x: x.get('match_time', ''))
-    
-    now = datetime.now()
-    two_hours_limit = timedelta(hours=2)
-    
-    active_afl = None
-    is_afl_preview = False
-    for doc in afl_active:
-        mtime_str = doc.get('match_time')
-        if mtime_str:
-            try:
-                mtime = datetime.fromisoformat(mtime_str)
-                if now >= mtime or (mtime - now) <= two_hours_limit:
-                    active_afl = doc
-                    break
-            except Exception:
-                continue
-                
-    if not active_afl and afl_active:
-        active_afl = afl_active[0]
-        is_afl_preview = True
+        if not active_afl and afl_active:
+            active_afl = afl_active[0]
+            is_afl_preview = True
 
-    active_ipl = None
-    is_ipl_preview = False
-    for doc in ipl_active:
-        mtime_str = doc.get('match_time')
-        if mtime_str:
-            try:
-                mtime = datetime.fromisoformat(mtime_str)
-                if now >= mtime or (mtime - now) <= two_hours_limit:
-                    active_ipl = doc
-                    break
-            except Exception:
-                continue
+        active_ipl = None
+        is_ipl_preview = False
+        for doc in ipl_active:
+            mtime_str = doc.get('match_time')
+            if mtime_str:
+                try:
+                    mtime = datetime.fromisoformat(mtime_str)
+                    if now >= mtime or (mtime - now) <= two_hours_limit:
+                        active_ipl = doc
+                        break
+                except Exception:
+                    continue
 
-    if not active_ipl and ipl_active:
-        active_ipl = ipl_active[0]
-        is_ipl_preview = True
-                
-    if active_afl:
-        payload["AFL"] = fetch_basic_live_match(couch, active_afl, "AFL", is_preview=is_afl_preview)
-    if active_ipl:
-        payload["IPL"] = fetch_basic_live_match(couch, active_ipl, "IPL", is_preview=is_ipl_preview)
-        
-    return payload
+        if not active_ipl and ipl_active:
+            active_ipl = ipl_active[0]
+            is_ipl_preview = True
+                    
+        if active_afl:
+            payload["AFL"] = fetch_basic_live_match(couch, active_afl, "AFL", is_preview=is_afl_preview)
+        if active_ipl:
+            payload["IPL"] = fetch_basic_live_match(couch, active_ipl, "IPL", is_preview=is_ipl_preview)
+            
+        return payload
+    except Exception as e:
+        return CLOUD_CACHE.get("live", {"AFL": None, "IPL": None})
 
 @app.get("/api/match/upcoming")
 def get_match_upcoming():
     try:
         couch = couchdb.Server(COUCHDB_URL)
+        couch.version() # Force connection check
+        if "match_fixtures" not in couch:
+            return []
+            
+        db_fixtures = couch["match_fixtures"]
+        
+        upcoming = []
+        for doc_id in db_fixtures:
+            if not doc_id.startswith('_design/'):
+                doc = db_fixtures[doc_id]
+                if doc.get('status') == 'active':
+                    upcoming.append(doc)
+                    
+        # Sort by match_time ascending
+        upcoming.sort(key=lambda x: x.get('match_time', ''))
+        return upcoming
     except Exception as e:
-        return {"error": f"Failed to connect to CouchDB: {e}"}
-        
-    if "match_fixtures" not in couch:
-        return []
-        
-    db_fixtures = couch["match_fixtures"]
-    
-    upcoming = []
-    for doc_id in db_fixtures:
-        if not doc_id.startswith('_design/'):
-            doc = db_fixtures[doc_id]
-            if doc.get('status') == 'active':
-                upcoming.append(doc)
-                
-    # Sort by match_time ascending
-    upcoming.sort(key=lambda x: x.get('match_time', ''))
-    return upcoming
+        return CLOUD_CACHE.get("upcoming", [])
 
 @app.get("/api/match/history")
 def get_match_history():
     try:
         couch = couchdb.Server(COUCHDB_URL)
+        couch.version() # Force connection check
+        if "match_fixtures" not in couch:
+            return []
+            
+        db_fixtures = couch["match_fixtures"]
+        
+        history = []
+        for doc_id in db_fixtures:
+            if not doc_id.startswith('_design/'):
+                doc = db_fixtures[doc_id]
+                if doc.get('status') == 'completed':
+                    history.append(doc)
+                    
+        # Sort by match_time descending
+        history.sort(key=lambda x: x.get('match_time', ''), reverse=True)
+        return history
     except Exception as e:
-        return {"error": f"Failed to connect to CouchDB: {e}"}
-        
-    if "match_fixtures" not in couch:
-        return []
-        
-    db_fixtures = couch["match_fixtures"]
-    
-    history = []
-    for doc_id in db_fixtures:
-        if not doc_id.startswith('_design/'):
-            doc = db_fixtures[doc_id]
-            if doc.get('status') == 'completed':
-                history.append(doc)
-                
-    # Sort by match_time descending
-    history.sort(key=lambda x: x.get('match_time', ''), reverse=True)
-    return history
+        return CLOUD_CACHE.get("history", [])
 
 
 if __name__ == "__main__":
