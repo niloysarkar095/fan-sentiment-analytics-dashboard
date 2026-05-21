@@ -19,7 +19,12 @@ except ModuleNotFoundError:
     pass
 # from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
-COUCHDB_URL = os.getenv("COUCHDB_URL", "http://admin:password123@127.0.0.1:5984/")
+if config and hasattr(config, "COUCHDB_URL"):
+    COUCHDB_URL = config.COUCHDB_URL
+else:
+    user = os.getenv("COUCHDB_USER", "admin")
+    password = os.getenv("COUCHDB_PASSWORD", "password123")
+    COUCHDB_URL = os.getenv("COUCHDB_URL", f"http://{user}:{password}@couchdb-db:5984/")
 
 app = FastAPI(title="AFL/IPL Real-Time Sentiment Dashboard")
 

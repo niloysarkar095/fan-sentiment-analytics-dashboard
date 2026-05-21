@@ -27,7 +27,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python -m uvicorn dashboard.app:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: COUCHDB_URL
-        value: http://admin:${COUCHDB_PASSWORD}@couchdb-db:5984/
+      - key: COUCHDB_USER
+        value: admin
+      - key: COUCHDB_PASSWORD
+        fromService:
+          type: web
+          name: couchdb-db
+          envVarKey: COUCHDB_PASSWORD
       - key: COUCHDB_DB_NAME
         value: reddit_afl
+
