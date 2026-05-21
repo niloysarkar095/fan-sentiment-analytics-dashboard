@@ -1,0 +1,59 @@
+{
+  "active_match_fixture_sample": {
+    "_id": "afl_2026_r11_hawthorn_vs_adelaide",
+    "league": "AFL",
+    "match_time": "2026-05-21T19:30:00",
+    "home_team": "hawthorn",
+    "away_team": "adelaide",
+    "reddit_thread_id": "t3_xyz123",
+    "prediction_snapshot": null,
+    "actual_winner": null,
+    "prediction_correct": null,
+    "status": "active"
+  },
+  "completed_cohort_breakdown_sample": {
+    "_id": "ipl_2026_m66_chennai_super_kings_vs_gujarat_titans",
+    "league": "IPL",
+    "match_time": "2026-05-22T00:00:00",
+    "home_team": "chennai_super_kings",
+    "away_team": "gujarat_titans",
+    "reddit_thread_id": "t3_abc456",
+    "prediction_snapshot": {
+      "home_score": 0.0873,
+      "away_score": 0.1055,
+      "demographics": {
+        "home_supporters": {
+          "total": 145,
+          "flairs": {
+            "chennai_super_kings": 98,
+            "neutral_fans": 32,
+            "mumbai_indians": 15
+          }
+        },
+        "away_supporters": {
+          "total": 112,
+          "flairs": {
+            "gujarat_titans": 74,
+            "neutral_fans": 20,
+            "royal_challengers_bengaluru": 18
+          }
+        }
+      },
+      "cohort_breakdown": {
+        "chennai_super_kings": {
+          "chennai_super_kings": 98,
+          "neutral_fans": 32,
+          "mumbai_indians": 15
+        },
+        "gujarat_titans": {
+          "gujarat_titans": 74,
+          "neutral_fans": 20,
+          "royal_challengers_bengaluru": 18
+        }
+      }
+    },
+    "actual_winner": "gujarat_titans",
+    "prediction_correct": true,
+    "status": "completed"
+  }
+}

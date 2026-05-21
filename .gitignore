@@ -6,6 +6,12 @@
 *test*
 purge*.py
 
+# Allow specific files/folders
+!/dashboard/
+!/docs/
+!/docs/*.json
+!/requirements.txt
+
 # Background Python Execution Processes
 analyzer_afl.py
 analyzer_ipl.py
