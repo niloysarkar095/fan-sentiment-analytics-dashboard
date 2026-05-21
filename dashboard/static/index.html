@@ -541,8 +541,14 @@
                     const matchTime = new Date(data.match_time);
 
                     if (now < matchTime) {
-                        predictedWinner.textContent = "⏰ Unlocks @ Match Start";
-                        predictedWinner.className = "text-xs font-semibold text-gray-400";
+                        let badgeText = "Predicted Winner: Even";
+                        if (gHome > gAway) {
+                            badgeText = `Predicted Winner: ${homeName}`;
+                        } else if (gAway > gHome) {
+                            badgeText = `Predicted Winner: ${awayName}`;
+                        }
+                        predictedWinner.innerHTML = `<span class="bg-yellow-600/30 text-yellow-300 text-xs px-2.5 py-1 rounded-full border border-yellow-500/30 font-bold">${badgeText}</span>`;
+                        predictedWinner.className = "text-xs font-semibold";
                     } else {
                         predictedWinner.textContent = "Calculating...";
                         predictedWinner.className = "text-xs font-semibold text-blue-400 animate-pulse";

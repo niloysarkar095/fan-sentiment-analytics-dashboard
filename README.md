@@ -4,6 +4,9 @@ An end-to-end, high-performance real-time sentiment analytics and sports match p
 
 The engine dynamically ingests public fan commentary streams from active social media channels (e.g., Reddit communities r/AFL and r/IPL), processes the text streams through resilient natural language processing (NLP) pipelines, models dynamic sentiment sway, and automatically computes pre-game predictive projections as well as support cohort profiles in real time.
 
+## 🚀 Live Production Dashboard
+View the live, autonomous real-time tracker here: [Fan Sentiment Analytics Dashboard](https://fan-sentiment-analytics-dashboard.onrender.com)
+
 ---
 
 ## 🏗️ Architecture Design
