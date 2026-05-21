@@ -4,7 +4,7 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: couchdb-db
-    env: docker
+    runtime: docker
     dockerImage: couchdb:3.3
     plan: starter # A starter or standard plan is required to attach a persistent disk
     envVars:
@@ -22,7 +22,7 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: fan-sentiment-dashboard
-    env: python
+    runtime: python
     plan: free # Can be run on Render's free tier
     buildCommand: pip install -r requirements.txt
     startCommand: python -m uvicorn dashboard.app:app --host 0.0.0.0 --port $PORT
@@ -36,4 +36,3 @@ services:
           envVarKey: COUCHDB_PASSWORD
       - key: COUCHDB_DB_NAME
         value: reddit_afl
-
