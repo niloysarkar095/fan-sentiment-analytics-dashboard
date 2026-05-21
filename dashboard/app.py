@@ -47,6 +47,15 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.on_event("startup")
 def startup_event():
+    # Wrap the index creation logic with a strict 2-second timeout connection check using 'couch.version()'
+    try:
+        session = couchdb.Session(timeout=2)
+        couch = couchdb.Server(COUCHDB_URL, session=session)
+        couch.version()
+    except Exception:
+        print("[STARTUP] CouchDB offline. Skipping index allocation, operating in Cache Mode.")
+        return
+
     # Ensure Mango Index for link_id in databases
     index_payload = {
         "index": {"fields": ["link_id"]},
@@ -63,7 +72,7 @@ def startup_event():
     for db_name in databases:
         raw_db_url = COUCHDB_URL.rstrip('/') + '/' + db_name
         try:
-            requests.post(f"{raw_db_url}/_index", json=index_payload)
+            requests.post(f"{raw_db_url}/_index", json=index_payload, timeout=2)
             print(f"Confirmed Mango index on 'link_id' for {db_name}.")
         except Exception as e:
             print(f"Warning: Failed to create index on link_id for {db_name} in app startup: {e}")
