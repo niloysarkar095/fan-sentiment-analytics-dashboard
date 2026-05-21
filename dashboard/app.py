@@ -4,13 +4,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import couchdb
 import os
-import config
+try:
+    import config
+except ModuleNotFoundError:
+    config = None
 import requests
 from datetime import datetime, timedelta
 
 # Import analyzer logic to calculate live sentiment
-from match_controller import get_mapped_team_general, get_team_doc_id
-from analyzer_afl import clean_text
+try:
+    from match_controller import get_mapped_team_general, get_team_doc_id
+    from analyzer_afl import clean_text
+except ModuleNotFoundError:
+    pass
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 COUCHDB_URL = os.getenv("COUCHDB_URL", "http://admin:password123@127.0.0.1:5984/")
@@ -41,8 +47,9 @@ def startup_event():
         "type": "json"
     }
     
+    afl_db_name = config.COUCHDB_DB_NAME if (config and hasattr(config, "COUCHDB_DB_NAME")) else "reddit_afl"
     databases = [
-        config.COUCHDB_DB_NAME, # reddit_afl
+        afl_db_name,
         "reddit_ipl"
     ]
     
