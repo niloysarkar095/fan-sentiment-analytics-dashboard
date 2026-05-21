@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Sentiment Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#111827',
+                        cardBg: '#1f2937'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sway-bar-container {
+            width: 100%;
+            height: 24px;
+            background-color: #374151;
+            border-radius: 9999px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+        .sway-bar-home {
+            background-color: #3b82f6;
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        .sway-bar-away {
+            background-color: #ef4444;
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        .sway-midline {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: white;
+            opacity: 0.5;
+            z-index: 10;
+        }
+        /* Custom scrollbar for the history ledger */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+        .clickable-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .clickable-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            border-color: #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-darkBg text-gray-100 min-h-screen font-sans antialiased p-6">
+
+    <!-- DEMOGRAPHICS MODAL -->
+    <div id="demographics-modal" class="fixed inset-0 z-50 hidden bg-black/80 flex justify-center items-center backdrop-blur-sm transition-opacity duration-300" onclick="closeModal(event)">
+        <div class="bg-cardBg w-full max-w-2xl rounded-xl shadow-2xl border border-gray-700 overflow-hidden" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div class="bg-gray-800 p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">📊 Demographic Breakdown</h3>
+                <button class="text-gray-400 hover:text-white text-2xl leading-none" onclick="closeModal(event)">&times;</button>
+            </div>
+            <!-- Content -->
+            <div id="modal-content" class="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-[1600px] mx-auto space-y-8">
+        
+        <header class="flex justify-between items-center border-b border-gray-800 pb-4">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-white">Live Fan Sentiment</h1>
+                <p class="text-gray-400 mt-1">Real-time Reddit sentiment analysis powered by NLTK VADER</p>
+            </div>
+            <div class="flex items-center space-x-2 bg-gray-800 px-4 py-2 rounded-full border border-gray-700 shadow-sm">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-sm font-medium text-gray-300">Live Connection</span>
+            </div>
+        </header>
+
+        <!-- Main Layout: 25% Left Ledger, 75% Right Main Content -->
+        <div class="flex flex-col lg:flex-row gap-8">
+            
+            <!-- LEFT PANEL: Two-Tab Match Ledger -->
+            <div class="lg:w-1/4 flex flex-col bg-cardBg rounded-xl shadow-lg border border-gray-800 h-[calc(100vh-140px)]">
+                <div class="p-4 border-b border-gray-700 bg-gray-800 rounded-t-xl">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span>📜</span> Match Ledger
+                    </h2>
+                    <p class="text-xs text-gray-400 mt-1">Real-time & Settled Records</p>
+                </div>
+                <!-- Dual-Tab Buttons -->
+                <div class="flex border-b border-gray-700 bg-gray-800/40">
+                    <button id="tab-upcoming" onclick="switchTab('upcoming')" class="flex-1 py-3 text-sm font-semibold border-b-2 border-blue-500 text-white transition-all focus:outline-none">
+                        Upcoming
+                    </button>
+                    <button id="tab-historical" onclick="switchTab('historical')" class="flex-1 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-400 hover:text-white transition-all focus:outline-none">
+                        Historical
+                    </button>
+                </div>
+                <div id="ledger-container" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                    <div class="text-center text-gray-500 py-10 italic text-sm" id="ledger-placeholder">
+                        Loading records...
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: Live Dashboard -->
+            <div class="lg:w-3/4 flex flex-col gap-8 overflow-y-auto custom-scrollbar pr-2 h-[calc(100vh-140px)]">
+                
+                <!-- Live Predictors Grid (AFL Left, IPL Right) -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    
+                    <!-- AFL Predictor Widget -->
+                    <div id="afl-predictor-widget" class="bg-cardBg rounded-xl shadow-lg border border-gray-800 p-6 flex flex-col clickable-card" onclick="openModal('AFL')">
+                        <div id="afl-active-header" class="flex justify-between items-start mb-6">
+                            <div>
+                                <h2 id="afl-widget-title" class="text-xl font-bold text-white flex items-center gap-2">
+                                    <span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded font-black">AFL</span> Active Match
+                                </h2>
+                                <p id="afl-match-teams-label" class="text-gray-400 mt-1 font-medium text-sm">Home vs Away</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Predicted</p>
+                                <p id="afl-predicted-winner" class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">Awaiting Snapshot</p>
+                            </div>
+                        </div>
+
+                        <div id="afl-active-content" class="space-y-6">
+                            <!-- AFL Global Sway -->
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-300 mb-2 flex justify-between">
+                                    <span id="afl-sway-title">Global Sentiment Sway</span>
+                                </h3>
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span id="afl-global-home-label" class="text-blue-400">Home</span>
+                                    <span id="afl-global-away-label" class="text-red-400">Away</span>
+                                </div>
+                                <div class="sway-bar-container h-4">
+                                    <div class="sway-midline"></div>
+                                    <div id="afl-global-bar-home" class="sway-bar-home" style="width: 50%"></div>
+                                    <div id="afl-global-bar-away" class="sway-bar-away" style="width: 50%"></div>
+                                </div>
+                                <div class="flex justify-between text-[10px] mt-1 text-gray-500 font-mono">
+                                    <span id="afl-global-home-val">0.00</span>
+                                    <span id="afl-global-away-val">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IPL Predictor Widget -->
+                    <div id="ipl-predictor-widget" class="bg-cardBg rounded-xl shadow-lg border border-gray-800 p-6 flex flex-col clickable-card" onclick="openModal('IPL')">
+                        <div id="ipl-active-header" class="flex justify-between items-start mb-6">
+                            <div>
+                                <h2 id="ipl-widget-title" class="text-xl font-bold text-white flex items-center gap-2">
+                                    <span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded font-black">IPL</span> Active Match
+                                </h2>
+                                <p id="ipl-match-teams-label" class="text-gray-400 mt-1 font-medium text-sm">Home vs Away</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Predicted</p>
+                                <p id="ipl-predicted-winner" class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">Awaiting Snapshot</p>
+                            </div>
+                        </div>
+
+                        <div id="ipl-active-content" class="space-y-6">
+                            <!-- IPL Global Sway -->
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-300 mb-2 flex justify-between">
+                                    <span id="ipl-sway-title">Global Sentiment Sway</span>
+                                </h3>
+                                <div class="flex justify-between text-xs font-bold mb-1">
+                                    <span id="ipl-global-home-label" class="text-blue-400">Home</span>
+                                    <span id="ipl-global-away-label" class="text-red-400">Away</span>
+                                </div>
+                                <div class="sway-bar-container h-4">
+                                    <div class="sway-midline"></div>
+                                    <div id="ipl-global-bar-home" class="sway-bar-home" style="width: 50%"></div>
+                                    <div id="ipl-global-bar-away" class="sway-bar-away" style="width: 50%"></div>
+                                </div>
+                                <div class="flex justify-between text-[10px] mt-1 text-gray-500 font-mono">
+                                    <span id="ipl-global-home-val">0.00</span>
+                                    <span id="ipl-global-away-val">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Global Sentiment Charts Grid -->
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    <!-- AFL Section -->
+                    <div class="bg-cardBg rounded-xl shadow-lg border border-gray-800 p-6 flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-semibold text-white">AFL Global Sentiment</h2>
+                            <span id="afl-count" class="text-xs text-gray-400 font-mono bg-gray-900 px-2 py-1 rounded border border-gray-700">Comms: 0</span>
+                        </div>
+                        <div class="relative h-[300px] w-full grow">
+                            <canvas id="aflChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- IPL Section -->
+                    <div class="bg-cardBg rounded-xl shadow-lg border border-gray-800 p-6 flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-semibold text-white">IPL Global Sentiment</h2>
+                            <span id="ipl-count" class="text-xs text-gray-400 font-mono bg-gray-900 px-2 py-1 rounded border border-gray-700">Comms: 0</span>
+                        </div>
+                        <div class="relative h-[300px] w-full grow flex justify-center items-center">
+                            <canvas id="iplChart"></canvas>
+                            <div id="ipl-placeholder" class="absolute inset-0 flex flex-col justify-center items-center hidden bg-cardBg/90 z-10 rounded">
+                                <svg class="w-10 h-10 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                <span class="text-sm text-gray-400 font-medium">Awaiting Data Stream...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Utility Functions
+        const formatTeam = (str) => {
+            if (!str) return 'Unknown';
+            return str.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        };
+
+        const formatDate = (isoString) => {
+            if (!isoString) return '';
+            const d = new Date(isoString);
+            return d.toLocaleString('en-AU', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'
+            });
+        };
+
+        function getSwayRatio(homeScore, awayScore) {
+            const h = homeScore + 1.0;
+            const a = awayScore + 1.0;
+            const total = h + a;
+            if (total === 0) return 50; 
+            return (h / total) * 100;
+        }
+
+        // Global State
+        let globalScores = {
+            "AFL": [],
+            "IPL": []
+        };
+
+        function getTeamSentiment(league, teamId) {
+            const list = globalScores[league] || [];
+            const normalizedId = teamId.toLowerCase().replace(/_/g, ' ').trim();
+            const found = list.find(item => item.team_name.toLowerCase().replace(/_/g, ' ').trim() === normalizedId);
+            return found ? found.average_sentiment : 0.0;
+        }
+
+        let liveMatchData = {
+            "AFL": null,
+            "IPL": null
+        };
+        let currentTab = 'upcoming'; // 'upcoming' or 'historical'
+        let upcomingRecordsData = [];
+        let historyRecordsData = [];
+
+        function closeModal(e) {
+            document.getElementById('demographics-modal').classList.add('hidden');
+        }
+
+        function renderFlairList(flairsObj) {
+            if (!flairsObj || Object.keys(flairsObj).length === 0) return '<p class="text-gray-500 text-sm italic">No data</p>';
+            let html = '<ul class="space-y-2 mt-2">';
+            for (const [flair, count] of Object.entries(flairsObj)) {
+                let display = flair === 'neutral_fans' ? 'Neutral / Undecided' : formatTeam(flair);
+                let colorClass = flair === 'neutral_fans' ? 'text-gray-400' : 'text-gray-200';
+                html += `<li class="flex justify-between items-center bg-gray-900 px-3 py-2 rounded">
+                            <span class="${colorClass} text-sm font-medium">${display}</span>
+                            <span class="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded font-mono">${count}</span>
+                         </li>`;
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        function renderCohortList(cohortsObj, targetTeamId, targetTeamName) {
+            if (!cohortsObj || Object.keys(cohortsObj).length === 0) {
+                return '<p class="text-gray-500 text-sm italic">No votes recorded</p>';
+            }
+            let html = '<ul class="space-y-2 mt-2">';
+            for (const [cohort, count] of Object.entries(cohortsObj)) {
+                if (count === 0) continue;
+                let display = '';
+                let badge = '';
+                
+                if (cohort === targetTeamId) {
+                    display = `${count} loyal fans from <span class="font-bold text-white">${formatTeam(cohort)}</span> backed their team`;
+                    badge = '<span class="bg-green-900/60 text-green-300 text-[10px] px-2 py-0.5 rounded-full font-bold">Loyalist</span>';
+                } else if (cohort === 'neutral_fans') {
+                    display = `${count} Neutral/Undecided fans backed <span class="font-bold text-white">${targetTeamName}</span>`;
+                    badge = '<span class="bg-gray-700 text-gray-300 text-[10px] px-2 py-0.5 rounded-full font-bold">Neutral</span>';
+                } else {
+                    display = `${count} users from <span class="font-bold text-white">${formatTeam(cohort)}</span> backed <span class="font-bold text-white">${targetTeamName}</span>`;
+                    badge = '<span class="bg-blue-900/60 text-blue-300 text-[10px] px-2 py-0.5 rounded-full font-bold">External</span>';
+                }
+                
+                html += `<li class="flex justify-between items-start gap-2 bg-gray-900/80 p-3 rounded-lg border border-gray-800 animate-fadeIn">
+                            <span class="text-gray-300 text-sm leading-relaxed">${display}</span>
+                            ${badge}
+                         </li>`;
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        function openModal(leagueKey, isHistory = false, historyIndex = 0) {
+            let data = null;
+            if (isHistory) {
+                data = currentTab === 'upcoming' ? upcomingRecordsData[historyIndex] : historyRecordsData[historyIndex];
+            } else {
+                data = liveMatchData[leagueKey];
+            }
+            
+            if (!data) return;
+
+            const content = document.getElementById('modal-content');
+            
+            if (data.prediction_snapshot && data.prediction_snapshot.cohort_breakdown) {
+                const breakdown = data.prediction_snapshot.cohort_breakdown;
+                const homeId = data.home_team;
+                const awayId = data.away_team;
+                const homeName = formatTeam(homeId);
+                const awayName = formatTeam(awayId);
+
+                const homeCohorts = breakdown[homeId] || {};
+                const awayCohorts = breakdown[awayId] || {};
+
+                const homeTotal = Object.values(homeCohorts).reduce((a, b) => a + b, 0);
+                const awayTotal = Object.values(awayCohorts).reduce((a, b) => a + b, 0);
+                const totalParticipants = homeTotal + awayTotal;
+
+                content.innerHTML = `
+                    <div class="text-center mb-6">
+                        <p class="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">Total Supporting Votes</p>
+                        <p class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">${totalParticipants}</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-blue-900/50">
+                            <h4 class="text-lg font-bold text-blue-400 border-b border-gray-700 pb-2 mb-3 flex justify-between items-center">
+                                <span>${homeName} Support</span>
+                                <span class="bg-blue-900/50 text-blue-300 text-xs px-2.5 py-0.5 rounded-full font-mono">${homeTotal}</span>
+                            </h4>
+                            ${renderCohortList(homeCohorts, homeId, homeName)}
+                        </div>
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-red-900/50">
+                            <h4 class="text-lg font-bold text-red-400 border-b border-gray-700 pb-2 mb-3 flex justify-between items-center">
+                                <span>${awayName} Support</span>
+                                <span class="bg-red-900/50 text-red-300 text-xs px-2.5 py-0.5 rounded-full font-mono">${awayTotal}</span>
+                            </h4>
+                            ${renderCohortList(awayCohorts, awayId, awayName)}
+                        </div>
+                    </div>
+                `;
+            } else if (data.prediction_snapshot && data.prediction_snapshot.demographics) {
+                const homeSupporters = data.prediction_snapshot.demographics.home_supporters;
+                const awaySupporters = data.prediction_snapshot.demographics.away_supporters;
+                const totalParticipants = homeSupporters.total + awaySupporters.total;
+                const homeName = formatTeam(data.home_team);
+                const awayName = formatTeam(data.away_team);
+
+                content.innerHTML = `
+                    <div class="text-center mb-6">
+                        <p class="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">Total Active Participants</p>
+                        <p class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">${totalParticipants}</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-blue-900/50">
+                            <h4 class="text-lg font-bold text-blue-400 border-b border-gray-700 pb-2 mb-3">
+                                ${homeName} Supporters
+                                <span class="float-right bg-blue-900/50 text-blue-300 text-xs px-2 py-1 rounded-full">${homeSupporters.total}</span>
+                            </h4>
+                            ${renderFlairList(homeSupporters.flairs)}
+                        </div>
+                        <div class="bg-gray-800/50 p-4 rounded-xl border border-red-900/50">
+                            <h4 class="text-lg font-bold text-red-400 border-b border-gray-700 pb-2 mb-3">
+                                ${awayName} Supporters
+                                <span class="float-right bg-red-900/50 text-red-300 text-xs px-2 py-1 rounded-full">${awaySupporters.total}</span>
+                            </h4>
+                            ${renderFlairList(awaySupporters.flairs)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                content.innerHTML = `<div class="text-center text-gray-400 py-10">Cohort breakdown is unavailable for this match.</div>`;
+            }
+            
+            document.getElementById('demographics-modal').classList.remove('hidden');
+        }
+
+        // Chart Configuration
+        const chartConfig = {
+            type: 'bar',
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 500 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.x !== null) label += context.parsed.x.toFixed(3);
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Average Sentiment', color: '#9ca3af' },
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9ca3af' },
+                        suggestedMin: -0.5,
+                        suggestedMax: 0.5
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#d1d5db', font: { weight: 'bold', size: 10 } }
+                    }
+                }
+            }
+        };
+
+        const aflCtx = document.getElementById('aflChart').getContext('2d');
+        const aflChart = new Chart(aflCtx, JSON.parse(JSON.stringify(chartConfig)));
+
+        const iplCtx = document.getElementById('iplChart').getContext('2d');
+        const iplChart = new Chart(iplCtx, JSON.parse(JSON.stringify(chartConfig)));
+
+        function updateChart(chart, dataArray, countElementId) {
+            dataArray.sort((a, b) => b.average_sentiment - a.average_sentiment);
+            const labels = dataArray.map(d => formatTeam(d.team_name));
+            const values = dataArray.map(d => d.average_sentiment);
+            const totalComments = dataArray.reduce((acc, curr) => acc + curr.comment_count, 0);
+            
+            document.getElementById(countElementId).textContent = `Comms: ${totalComments}`;
+            const bgColors = values.map(v => v > 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)');
+            const borderColors = values.map(v => v > 0 ? 'rgb(21, 128, 61)' : 'rgb(185, 28, 28)');
+
+            chart.data.labels = labels;
+            chart.data.datasets = [{
+                data: values, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1, borderRadius: 2
+            }];
+            chart.update();
+        }
+
+        function updatePredictorWidget(leagueKey, data) {
+            const lk = leagueKey.toLowerCase();
+            const widget = document.getElementById(`${lk}-predictor-widget`);
+            
+            if (data) {
+                widget.classList.remove('hidden');
+                widget.style.cursor = 'pointer';
+                widget.onclick = () => openModal(leagueKey);
+                
+                const homeName = formatTeam(data.home_team);
+                const awayName = formatTeam(data.away_team);
+                
+                document.getElementById(`${lk}-match-teams-label`).textContent = `${homeName} vs ${awayName}`;
+                document.getElementById(`${lk}-global-home-label`).textContent = homeName;
+                document.getElementById(`${lk}-global-away-label`).textContent = awayName;
+                
+                const gHome = data.global_sway.home || 0;
+                const gAway = data.global_sway.away || 0;
+                document.getElementById(`${lk}-global-home-val`).textContent = gHome.toFixed(3);
+                document.getElementById(`${lk}-global-away-val`).textContent = gAway.toFixed(3);
+                
+                const globalRatio = getSwayRatio(gHome, gAway);
+                document.getElementById(`${lk}-global-bar-home`).style.width = `${globalRatio}%`;
+                document.getElementById(`${lk}-global-bar-away`).style.width = `${100 - globalRatio}%`;
+                
+                const widgetTitle = document.getElementById(`${lk}-widget-title`);
+                const swayTitle = document.getElementById(`${lk}-sway-title`);
+                const predictedWinner = document.getElementById(`${lk}-predicted-winner`);
+                
+                const leagueBadgeColor = leagueKey === 'AFL' ? 'bg-red-600' : 'bg-blue-600';
+                const leagueBadge = `<span class="${leagueBadgeColor} text-white text-xs px-2 py-0.5 rounded font-black">${leagueKey}</span>`;
+                
+                if (data.is_preview) {
+                    widgetTitle.innerHTML = `${leagueBadge} Upcoming Preview`;
+                    swayTitle.textContent = "Pre-Game Cumulative Sentiment Projection";
+                    
+                    let badgeText = "⏰ Advance Preview";
+                    if (gHome > gAway) {
+                        badgeText = `Predicted Winner: ${homeName}`;
+                    } else if (gAway > gHome) {
+                        badgeText = `Predicted Winner: ${awayName}`;
+                    }
+                    
+                    predictedWinner.innerHTML = `<span class="bg-yellow-600/30 text-yellow-300 text-xs px-2.5 py-1 rounded-full border border-yellow-500/30 font-bold">${badgeText}</span>`;
+                    predictedWinner.className = "text-xs font-semibold";
+                } else {
+                    widgetTitle.innerHTML = `${leagueBadge} Active Match`;
+                    swayTitle.textContent = "Global Sentiment Sway";
+                    
+                    const now = new Date();
+                    const matchTime = new Date(data.match_time);
+
+                    if (now < matchTime) {
+                        predictedWinner.textContent = "⏰ Unlocks @ Match Start";
+                        predictedWinner.className = "text-xs font-semibold text-gray-400";
+                    } else {
+                        predictedWinner.textContent = "Calculating...";
+                        predictedWinner.className = "text-xs font-semibold text-blue-400 animate-pulse";
+                    }
+                }
+            } else {
+                widget.classList.add('hidden');
+                widget.style.cursor = 'default';
+                widget.onclick = null;
+            }
+        }
+
+        async function fetchMatchLive() {
+            try {
+                const response = await fetch('/api/match/live');
+                const data = await response.json();
+                liveMatchData = data;
+                updatePredictorWidget('AFL', data.AFL);
+                updatePredictorWidget('IPL', data.IPL);
+            } catch (error) {
+                console.error("Error fetching live match data:", error);
+            }
+        }
+
+        async function fetchScores() {
+            try {
+                const response = await fetch('/api/scores');
+                const data = await response.json();
+                globalScores = data;
+
+                if (data.AFL && data.AFL.length > 0) updateChart(aflChart, data.AFL, 'afl-count');
+                if (data.IPL && data.IPL.length > 0) {
+                    document.getElementById('ipl-placeholder').classList.add('hidden');
+                    updateChart(iplChart, data.IPL, 'ipl-count');
+                } else {
+                    document.getElementById('ipl-placeholder').classList.remove('hidden');
+                }
+                renderLedger();
+            } catch (error) {
+                console.error("Error fetching scores:", error);
+            }
+        }
+
+        async function fetchMatchUpcoming() {
+            try {
+                const response = await fetch('/api/match/upcoming');
+                const records = await response.json();
+                upcomingRecordsData = records;
+                if (currentTab === 'upcoming') {
+                    renderLedger();
+                }
+            } catch (error) {
+                console.error("Error fetching upcoming matches:", error);
+            }
+        }
+
+        async function fetchMatchHistory() {
+            try {
+                const response = await fetch('/api/match/history');
+                const records = await response.json();
+                historyRecordsData = records;
+                if (currentTab === 'historical') {
+                    renderLedger();
+                }
+            } catch (error) {
+                console.error("Error fetching match history:", error);
+            }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            const tabUpcoming = document.getElementById('tab-upcoming');
+            const tabHistorical = document.getElementById('tab-historical');
+            
+            if (tab === 'upcoming') {
+                tabUpcoming.classList.add('border-blue-500', 'text-white');
+                tabUpcoming.classList.remove('border-transparent', 'text-gray-400');
+                tabHistorical.classList.add('border-transparent', 'text-gray-400');
+                tabHistorical.classList.remove('border-blue-500', 'text-white');
+            } else {
+                tabHistorical.classList.add('border-blue-500', 'text-white');
+                tabHistorical.classList.remove('border-transparent', 'text-gray-400');
+                tabUpcoming.classList.add('border-transparent', 'text-gray-400');
+                tabUpcoming.classList.remove('border-blue-500', 'text-white');
+            }
+            
+            renderLedger();
+        }
+
+        function renderLedger() {
+            const container = document.getElementById('ledger-container');
+            const records = currentTab === 'upcoming' ? upcomingRecordsData : historyRecordsData;
+            
+            if (!records || records.length === 0) {
+                const message = currentTab === 'upcoming' ? 'No active upcoming matches.' : 'No settled matches yet.';
+                container.innerHTML = `<div class="text-center text-gray-500 py-10 italic text-sm">${message}</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            let hasPredictedAFL = false;
+            let hasPredictedIPL = false;
+            
+            records.forEach((rec, index) => {
+                const isAFL = rec.league === 'AFL';
+                const isIPL = rec.league === 'IPL';
+                const badgeColor = isAFL ? 'bg-red-600' : 'bg-blue-600';
+                
+                const card = document.createElement('div');
+                card.className = "bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-gray-500 transition-colors shadow-sm clickable-card";
+                card.onclick = () => openModal(null, true, index);
+                
+                if (currentTab === 'upcoming') {
+                    let statusHtml = '<span class="text-green-400 font-medium font-mono">Gathering Sentiment...</span>';
+                    
+                    let shouldPredict = false;
+                    if (isAFL && !hasPredictedAFL) {
+                        shouldPredict = true;
+                        hasPredictedAFL = true;
+                    } else if (isIPL && !hasPredictedIPL) {
+                        shouldPredict = true;
+                        hasPredictedIPL = true;
+                    }
+                    
+                    if (shouldPredict) {
+                        const hSent = getTeamSentiment(rec.league, rec.home_team);
+                        const aSent = getTeamSentiment(rec.league, rec.away_team);
+                        
+                        let projectedWinner = "";
+                        if (hSent > aSent) {
+                            projectedWinner = formatTeam(rec.home_team);
+                        } else if (aSent > hSent) {
+                            projectedWinner = formatTeam(rec.away_team);
+                        }
+                        
+                        if (projectedWinner) {
+                            statusHtml = `<span class="text-green-400 font-medium font-mono">Projected: ${projectedWinner}</span>`;
+                        } else {
+                            statusHtml = `<span class="text-green-400 font-medium font-mono">Projected: Even</span>`;
+                        }
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="${badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">${rec.league}</span>
+                                <span class="text-xs text-green-400 font-semibold animate-pulse flex items-center gap-1">
+                                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400"></span>Active
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-400 font-mono">${formatDate(rec.match_time)}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-100 mb-1 leading-tight">${formatTeam(rec.home_team)} <span class="text-gray-500 font-normal">vs</span> ${formatTeam(rec.away_team)}</h4>
+                        <div class="space-y-1 mt-3 pt-2 border-t border-gray-700">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-400">Status:</span>
+                                ${statusHtml}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const correctIcon = rec.prediction_correct ? '✔️' : (rec.prediction_correct === false ? '❌' : '⌛');
+                    const correctClass = rec.prediction_correct ? 'text-green-400' : (rec.prediction_correct === false ? 'text-red-400' : 'text-gray-400');
+                    
+                    let swayText = "N/A";
+                    if (rec.prediction_snapshot) {
+                        const hScore = rec.prediction_snapshot.home_score || 0;
+                        const aScore = rec.prediction_snapshot.away_score || 0;
+                        const ratio = getSwayRatio(hScore, aScore);
+                        swayText = `${ratio.toFixed(1)}% Home`;
+                    }
+
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="${badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">${rec.league}</span>
+                                <span class="text-xs text-gray-400 font-mono">${formatDate(rec.match_time)}</span>
+                            </div>
+                            <span class="${correctClass} text-sm" title="Prediction Correctness">${correctIcon}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-100 mb-1 leading-tight">${formatTeam(rec.home_team)} <span class="text-gray-500 font-normal">vs</span> ${formatTeam(rec.away_team)}</h4>
+                        <div class="space-y-1 mt-3">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-400">Sway Ratio:</span>
+                                <span class="text-gray-200 font-mono">${swayText}</span>
+                            </div>
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-400">Predicted:</span>
+                                <span class="text-blue-400 font-medium">${formatTeam(rec.predicted_winner) || '-'}</span>
+                            </div>
+                            <div class="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
+                                <span class="text-gray-400">Actual Winner:</span>
+                                <span class="text-green-400 font-bold">${formatTeam(rec.actual_winner) || 'Pending'}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                container.appendChild(card);
+            });
+        }
+
+        // Main Polling Loop
+        function pollData() {
+            fetchScores();
+            fetchMatchLive();
+            fetchMatchUpcoming();
+            fetchMatchHistory();
+        }
+
+        pollData();
+        setInterval(pollData, 5000);
+    </script>
+</body>
+</html>

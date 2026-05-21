@@ -1,0 +1,19 @@
+# Ignore everything in the root by default
+/*
+
+# Allow specific files/folders
+!/dashboard/
+!/requirements.txt
+!/README.md
+!/.gitignore
+
+# Ignore standard environment, credentials, system and IDE files everywhere
+.env
+*.pyc
+__pycache__/
+.venv/
+env/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
