@@ -1,19 +1,22 @@
-# Ignore everything in the root by default
-/*
-
-# Allow specific files/folders
-!/dashboard/
-!/requirements.txt
-!/README.md
-!/.gitignore
-
-# Ignore standard environment, credentials, system and IDE files everywhere
+# Local Database & Script Credentials
 .env
-*.pyc
+*.json
+*.csv
+*sandbox*
+*test*
+purge*.py
+
+# Background Python Execution Processes
+analyzer_afl.py
+analyzer_ipl.py
+match_controller.py
+sync_schedule.py
+
+# Python Environment Discards
 __pycache__/
+*.pyc
 .venv/
 env/
+vcs.xml
 .idea/
 .vscode/
-.DS_Store
-Thumbs.db

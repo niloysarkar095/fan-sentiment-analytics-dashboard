@@ -1,112 +1,95 @@
-# 🌟 Live Fan Sentiment Analysis & Match Predictor Dashboard
+# Decentralized Fan Sentiment Analytics Engine
 
-A real-time, high-fidelity sports sentiment analytics and projection engine for **AFL (Australian Football League)** and **IPL (Indian Premier League)**. By dynamically listening to high-velocity fan commentary on Reddit, this system applies advanced natural language processing (NLP) to model dynamic public sway, project upcoming match winners, and evaluate demographic support cohorts in real time.
+An end-to-end, high-performance real-time sentiment analytics and sports match projection platform focused on the **AFL (Australian Football League)** and **IPL (Indian Premier League)**.
+
+The engine dynamically ingests public fan commentary streams from active social media channels (e.g., Reddit communities r/AFL and r/IPL), processes the text streams through resilient natural language processing (NLP) pipelines, models dynamic sentiment sway, and automatically computes pre-game predictive projections as well as support cohort profiles in real time.
 
 ---
 
-## 🏗️ Hybrid Architecture Summary
+## 🏗️ Architecture Design
 
-The platform is designed around a decoupled, highly resilient multi-service architecture:
+The system implements a hybrid decentralized architecture comprising independent microservices communicating with a central Apache CouchDB store:
 
 ```
-                  ┌──────────────────────────────────────────────┐
-                  │                 Reddit API                   │
-                  └──────────────────────┬───────────────────────┘
-                                         │ (Comment Stream)
-                                         ▼
-                  ┌──────────────────────────────────────────────┐
-                  │          Headless Scraper Daemon             │
-                  └──────────────────────┬───────────────────────┘
-                                         │ (Buffer Ingestion)
-                                         ▼
-                  ┌──────────────────────────────────────────────┐
-                  │           Apache CouchDB Store               │
-                  └──────────┬───────────┬────────────┬──────────┘
-                             │           │            │
-         (AFL Change Stream) │           │            │ (IPL Change Stream)
-                             ▼           │            ▼
-   ┌───────────────────────────┐         │   ┌───────────────────────────┐
-   │    AFL Analyzer Engine    │         │   │    IPL Analyzer Engine    │
-   │      (NLTK VADER NLP)     │         │   │      (NLTK VADER NLP)     │
-   └─────────────┬─────────────┘         │   └────────────┬──────────────┘
-                 │ (Sway Scores)         │                │ (Sway Scores)
-                 ▼                       │                ▼
-   ┌───────────────────────────┐         │   ┌───────────────────────────┐
-   │    afl_scores Database    │         │   │    ipl_scores Database    │
-   └─────────────┬─────────────┘         │   └────────────┬──────────────┘
-                 │                       │                │
-                 └──────────────┐        │        ┌───────┘
-                                │        │        │
-                                ▼        ▼        ▼
-                  ┌──────────────────────────────────────────────┐
-                  │             FastAPI Backend API              │
-                  │             (Presentation Layer)             │
-                  └──────────────────────┬───────────────────────┘
-                                         │ (JSON Endpoints)
-                                         ▼
-                  ┌──────────────────────────────────────────────┐
-                  │             Tailwind Frontend UI             │
-                  │          (Real-Time Spotlight/Sway)          │
-                  └──────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────────┐
+  │                   Reddit Data Stream                   │
+  └───────────────────────────┬────────────────────────────┘
+                              │ (Comment Ingestion API)
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │                 Autonomous Scraper                     │
+  └───────────────────────────┬────────────────────────────┘
+                              │ (Raw Document Buffer)
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │                  Apache CouchDB Store                  │
+  └─────────────┬──────────────────────────────┬───────────┘
+                │                              │
+                ├──────────────────────────────┤
+                ▼                              ▼
+  ┌───────────────────────────┐  ┌───────────────────────────┐
+  │    AFL Sentiment Engine   │  │    IPL Sentiment Engine   │
+  │      (NLTK VADER NLP)     │  │      (NLTK VADER NLP)     │
+  └─────────────┬─────────────┘  └─────────────┬─────────────┘
+                │ (Dynamic Sway Metrics)       │ (Dynamic Sway Metrics)
+                ▼                              ▼
+  ┌───────────────────────────┐  ┌───────────────────────────┐
+  │        afl_scores         │  │        ipl_scores         │
+  └─────────────┬─────────────┘  └─────────────┬─────────────┘
+                │                              │
+                └──────────────┬───────────────┘
+                               │ (Dynamic Scoring API)
+                               ▼
+  ┌────────────────────────────────────────────────────────┐
+  │                   FastAPI Backend                      │
+  │                 (Presentation Layer)                   │
+  └───────────────────────────┬────────────────────────────┘
+                              │ (JSON Payload Delivery)
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │                 High-Fidelity Dashboard                │
+  │               (Spotlight & Ledger UI)                  │
+  └────────────────────────────────────────────────────────┘
 ```
 
-### 1. Presentation Layer (`dashboard/`)
-- **FastAPI Presentation API**: A lightweight, high-performance API serving structured JSON endpoints for live, upcoming, and historical match data. Securely connects to CouchDB using environment variable configuration.
-- **Dynamic Spotlight Engine**: Overhauled to provide intelligent pre-game previews when no match is active. Compares live, rolling fan sentiments to project the `Predicted Winner` ahead of start times.
-- **Twin-Track Ledger**: A sleek, dark glassmorphic match listing that tracks AFL and IPL fixtures independently, showing micro-predictions for the absolute next game of each league.
+### 1. Presentation & Delivery (`dashboard/`)
+- **FastAPI Backend (`app.py`)**: Delivers highly optimized endpoints for scores, active live matches, pre-game previews, upcoming schedules, and historical records. Features secure runtime environment fallback setups.
+- **Glassmorphic Frontend (`static/index.html`)**: A sleek, dark-mode visual interface styled using Tailwind CSS and interactive Chart.js widgets. It showcases real-time sentiment sways, support flairs, loyalist cohort support levels, and sports forecasts.
 
-### 2. Autonomous Ingestion & Process Pipelines (Excluded from Public Repo)
-- **Headless Comment Scraper**: Connects to the Reddit API and streams live comments, maintaining constant throughput.
-- **NLTK VADER Sentiment Analyzers**: Parallel continuous change listeners that process CouchDB raw queues. Equipped with custom `while True:` reconnect loops for 100% database stream resilience.
-- **Match State Controller**: Manages database initialization, chronologically sorts fixtures, and settles predictions once matches conclude.
-
----
-
-## 🛠️ Technology Stack
-
-- **Backend API**: Python 3.10+, FastAPI, Uvicorn
-- **Sentiment & NLP**: NLTK (VADER Sentiment Analysis)
-- **Database Layer**: Apache CouchDB 3.x (Leveraging Mango JSON Indexing)
-- **Frontend Presentation**: HTML5, Vanilla JavaScript (ES6), Tailwind CSS (CDN), Chart.js
+### 2. Autonomous Processing & Ingestion (Local Daemon Services)
+- **Continuous Scraper Daemon (`listener.py`)**: Runs persistently, listening to stream sockets and loading raw commentary documents into the database.
+- **Real-Time Sentiment Analyzers (`analyzer_afl.py` / `analyzer_ipl.py`)**: Continuously monitor changes feeds in the database. Equipped with `while True:` reconnect error catchers and backoff logic for total network resilience.
+- **State Orchestrator (`match_controller.py` & `sync_schedule.py`)**: Auto-updates schedule ledgers, creates Mango indexes, manages active pre-game timelines, and evaluates post-match correctness.
 
 ---
 
-## ⚡ Quick Start & Deployment
+## 🛠️ Technological Stack
 
-### 1. Prerequisites
-- **Python**: Ensure Python 3.10+ is installed.
-- **Database**: A running instance of Apache CouchDB 3.x with admin privileges.
+- **Server Core**: Python 3.10+, FastAPI, Uvicorn
+- **NLP Sentiment Analysis**: Natural Language Toolkit (NLTK VADER Intensity Analyzer)
+- **Database Engine**: Apache CouchDB 3.x (Mango query indices)
+- **Interface Layer**: HTML5, Modern ES6 JavaScript, Tailwind CSS, Chart.js
 
-### 2. Installation
-Clone the repository and install the required dependencies:
+---
+
+## ⚡ Deployment & Quick Start
+
+### 1. Installation
+Install the necessary requirements for the presentation backend:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
-Create a `.env` file in the root folder or set your environment variables directly to securely specify your CouchDB credentials:
+### 2. Configure Environment Variable
+Securely configure your database credentials using a local environment variable:
 ```env
-COUCHDB_URL=http://your_db_username:your_db_password@127.0.0.1:5984/
+COUCHDB_URL=http://your_username:your_password@127.0.0.1:5984/
 ```
-*Note: If no environment variable is provided, the API gracefully falls back to a secure local default (`http://admin:password123@127.0.0.1:5984/`).*
+*If not set, the app defaults to a standard development connection (`http://admin:password123@127.0.0.1:5984/`).*
 
-### 4. Running the Dashboard
-To start the presentation server locally on port 8000:
+### 3. Start Presentation Server
+Run the FastAPI application locally:
 ```bash
 python -m uvicorn dashboard.app:app --host 0.0.0.0 --port 8000
 ```
-Open your browser and navigate to `http://127.0.0.1:8000` to view the live dashboard.
-
----
-
-## 📁 Repository Structure
-
-```
-├── .gitignore             # Strict sanitization rules
-├── README.md              # Technical presentation & overview
-├── requirements.txt       # Production dependencies
-└── dashboard/             # Presentation layer
-    ├── app.py             # FastAPI backend implementation
-    └── static/            
-        └── index.html     # High-fidelity glassmorphic HTML/JS/CSS UI
-```
+Visit `http://127.0.0.1:8000` to interact with the real-time analytics UI.
