@@ -17,7 +17,7 @@ try:
     from analyzer_afl import clean_text
 except ModuleNotFoundError:
     pass
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+# from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 COUCHDB_URL = os.getenv("COUCHDB_URL", "http://admin:password123@127.0.0.1:5984/")
 
@@ -36,7 +36,7 @@ static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-sia = SentimentIntensityAnalyzer()
+# sia = SentimentIntensityAnalyzer()
 
 @app.on_event("startup")
 def startup_event():
