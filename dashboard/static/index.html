@@ -343,6 +343,7 @@
         }
 
         let modalChart = null;
+        let trendChart = null;
 
         function generateMockDemographics(homeId, awayId, globalSway) {
             const seed = (homeId + awayId).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -381,7 +382,7 @@
         }
 
         function openModal(leagueKey, isHistory = false, historyIndex = 0) {
-            // Explicitly destroy and clean up the Chart.js instance at the start of every click event
+            // Explicitly destroy and clean up the Chart.js instances at the start of every click event
             if (modalChart) {
                 try {
                     modalChart.destroy();
@@ -389,6 +390,14 @@
                     console.error("Error destroying old chart instance:", e);
                 }
                 modalChart = null;
+            }
+            if (trendChart) {
+                try {
+                    trendChart.destroy();
+                } catch (e) {
+                    console.error("Error destroying old trend chart instance:", e);
+                }
+                trendChart = null;
             }
 
             let data = null;
@@ -425,11 +434,21 @@
                     <p class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">${totalParticipants}</p>
                 </div>
 
-                <!-- Chart Visualization -->
-                <div class="bg-gray-800/40 p-4 rounded-xl border border-gray-700 mb-6 flex flex-col items-center justify-center">
-                    <h5 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Overall Fanbase Distribution</h5>
-                    <div class="relative w-full h-44">
-                        <canvas id="modalDemographicsChart"></canvas>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <!-- Fanbase Chart Visualization -->
+                    <div class="bg-gray-800/40 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center">
+                        <h5 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Overall Fanbase Distribution</h5>
+                        <div class="relative w-full h-44">
+                            <canvas id="modalDemographicsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Trend Chart Visualization -->
+                    <div class="bg-gray-800/40 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center">
+                        <h5 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Sentiment Sway Trend Timeline</h5>
+                        <div class="relative w-full h-44">
+                            <canvas id="trendChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -488,6 +507,85 @@
                             }
                         },
                         cutout: '65%'
+                    }
+                });
+            }
+
+            const trendCanvas = document.getElementById('trendChart');
+            if (trendCanvas) {
+                const history = data.sway_history || [];
+                
+                // Safe baseline if history is empty
+                const chartHistory = history.length > 0 ? history : [
+                    {
+                        timestamp: new Date(new Date().getTime() - 60000).toISOString(),
+                        home_sway: data.global_sway ? (data.global_sway.home || 0.0) : 0.0,
+                        away_sway: data.global_sway ? (data.global_sway.away || 0.0) : 0.0
+                    },
+                    {
+                        timestamp: new Date().toISOString(),
+                        home_sway: data.global_sway ? (data.global_sway.home || 0.0) : 0.0,
+                        away_sway: data.global_sway ? (data.global_sway.away || 0.0) : 0.0
+                    }
+                ];
+
+                const trendLabels = chartHistory.map(item => {
+                    const d = new Date(item.timestamp);
+                    return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                });
+
+                const homeData = chartHistory.map(item => item.home_sway);
+                const awayData = chartHistory.map(item => item.away_sway);
+
+                const trendCtx = trendCanvas.getContext('2d');
+                trendChart = new Chart(trendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: trendLabels,
+                        datasets: [
+                            {
+                                label: `${homeName} Sway`,
+                                data: homeData,
+                                borderColor: 'rgb(59, 130, 246)',
+                                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                borderWidth: 2.5,
+                                tension: 0.3,
+                                fill: true
+                            },
+                            {
+                                label: `${awayName} Sway`,
+                                data: awayData,
+                                borderColor: 'rgb(239, 68, 68)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                borderWidth: 2.5,
+                                tension: 0.3,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: '#d1d5db',
+                                    font: { size: 10, weight: 'bold' }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af', font: { size: 9 } }
+                            },
+                            y: {
+                                grid: { color: '#374151' },
+                                ticks: { color: '#9ca3af', font: { size: 9 } }
+                            }
+                        }
                     }
                 });
             }

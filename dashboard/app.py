@@ -150,6 +150,8 @@ def fetch_basic_live_match(couch, fix, league, is_preview=False):
     }
     if "prediction_snapshot" in fix:
         res["prediction_snapshot"] = fix["prediction_snapshot"]
+    if "sway_history" in fix:
+        res["sway_history"] = fix["sway_history"]
     return res
 
 
