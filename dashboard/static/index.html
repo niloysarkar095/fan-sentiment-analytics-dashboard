@@ -224,7 +224,7 @@
                             <h2 class="text-xl font-semibold text-white">AFL Global Sentiment</h2>
                             <span id="afl-count" class="text-xs text-gray-400 font-mono bg-gray-900 px-2 py-1 rounded border border-gray-700">Comms: 0</span>
                         </div>
-                        <div class="relative h-[300px] w-full grow">
+                        <div class="relative h-[480px] w-full grow">
                             <canvas id="aflChart"></canvas>
                         </div>
                     </div>
@@ -880,6 +880,7 @@
                     const correctClass = rec.prediction_correct ? 'text-green-400' : (rec.prediction_correct === false ? 'text-red-400' : 'text-gray-400');
                     
                     let swayText = "N/A";
+                    let predictedText = formatTeam(rec.predicted_winner) || '-';
                     if (rec.prediction_snapshot) {
                         let hScore = 0;
                         let aScore = 0;
@@ -900,6 +901,12 @@
                         
                         const ratio = getSwayRatio(hScore, aScore);
                         swayText = `${ratio.toFixed(1)}% Home`;
+                        
+                        if (ratio < 50) {
+                            predictedText = formatTeam(rec.away_team);
+                        } else if (ratio > 50) {
+                            predictedText = formatTeam(rec.home_team);
+                        }
                     }
 
                     card.innerHTML = `
@@ -918,7 +925,7 @@
                             </div>
                             <div class="flex justify-between text-xs">
                                 <span class="text-gray-400">Predicted:</span>
-                                <span class="text-blue-400 font-medium">${formatTeam(rec.predicted_winner) || '-'}</span>
+                                <span class="text-blue-400 font-medium">${predictedText}</span>
                             </div>
                             <div class="flex justify-between text-xs pt-1 border-t border-gray-700 mt-1">
                                 <span class="text-gray-400">Actual Winner:</span>
