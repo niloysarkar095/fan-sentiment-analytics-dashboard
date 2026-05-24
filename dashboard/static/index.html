@@ -882,8 +882,23 @@
                     
                     let swayText = "N/A";
                     if (rec.prediction_snapshot) {
-                        const hScore = rec.prediction_snapshot.home_score || 0;
-                        const aScore = rec.prediction_snapshot.away_score || 0;
+                        let hScore = 0;
+                        let aScore = 0;
+                        if ("home_score" in rec.prediction_snapshot) {
+                            hScore = rec.prediction_snapshot.home_score;
+                            aScore = rec.prediction_snapshot.away_score;
+                        } else {
+                            hScore = rec.prediction_snapshot[rec.home_team] || 0;
+                            aScore = rec.prediction_snapshot[rec.away_team] || 0;
+                        }
+                        
+                        // Sync card ratio perfectly with the last entry plotted on the trend line if present
+                        if (rec.sway_history && rec.sway_history.length > 0) {
+                            const lastEntry = rec.sway_history[rec.sway_history.length - 1];
+                            hScore = lastEntry.home_sway;
+                            aScore = lastEntry.away_sway;
+                        }
+                        
                         const ratio = getSwayRatio(hScore, aScore);
                         swayText = `${ratio.toFixed(1)}% Home`;
                     }
