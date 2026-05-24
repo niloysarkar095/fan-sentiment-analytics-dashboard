@@ -265,11 +265,10 @@
         };
 
         function getSwayRatio(homeScore, awayScore) {
-            const h = homeScore + 1.0;
-            const a = awayScore + 1.0;
-            const total = h + a;
-            if (total === 0) return 50; 
-            return (h / total) * 100;
+            const total = homeScore + awayScore;
+            if (total <= 0) return 50; 
+            const ratio = (homeScore / total) * 100;
+            return Math.max(0, Math.min(100, ratio));
         }
 
         // Global State
