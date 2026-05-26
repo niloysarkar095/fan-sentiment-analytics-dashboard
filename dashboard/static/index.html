@@ -451,6 +451,22 @@
                     </div>
                 </div>
 
+                <!-- Action Button for Risk Evaluation -->
+                <div class="mb-6 flex flex-col items-center">
+                    <button id="run-risk-btn" class="w-full md:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg border border-purple-500/30 transition-all transform hover:-translate-y-0.5 hover:shadow-purple-500/20 active:translate-y-0 flex items-center justify-center gap-2 text-sm uppercase tracking-wider">
+                        🤖 Run Enterprise Risk Evaluation
+                    </button>
+                    <div id="risk-loading" class="hidden mt-4 flex items-center gap-2 text-xs text-purple-300 font-mono animate-pulse">
+                        <svg class="animate-spin h-4 w-4 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Engaging Tuned Gemini 1.5 SFT Model...
+                    </div>
+                    <div id="risk-results" class="hidden w-full mt-4 bg-gray-900/60 border border-purple-500/20 p-5 rounded-xl text-left text-sm text-gray-200 leading-relaxed font-sans shadow-inner">
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-gray-800/50 p-4 rounded-xl border border-blue-900/50 animate-fadeIn">
                         <h4 class="text-lg font-bold text-blue-400 border-b border-gray-700 pb-2 mb-3">
@@ -587,6 +603,78 @@
                         }
                     }
                 });
+            }
+            
+            const runRiskBtn = document.getElementById('run-risk-btn');
+            if (runRiskBtn) {
+                runRiskBtn.onclick = async () => {
+                    const loading = document.getElementById('risk-loading');
+                    const results = document.getElementById('risk-results');
+                    
+                    loading.classList.remove('hidden');
+                    results.classList.add('hidden');
+                    runRiskBtn.disabled = true;
+                    
+                    try {
+                        const payload = {
+                            home_team: homeId,
+                            away_team: awayId,
+                            home_sway: homeSupporters.total > 0 ? (homeSupporters.flairs[homeId] || 0) / homeSupporters.total : 0.0,
+                            away_sway: awaySupporters.total > 0 ? (awaySupporters.flairs[awayId] || 0) / awaySupporters.total : 0.0,
+                            sway_ratio: (totalHomeFlairs / (totalHomeFlairs + totalAwayFlairs || 1)) * 100,
+                            home_fans: totalHomeFlairs,
+                            away_fans: totalAwayFlairs,
+                            neutral_fans: totalNeutralFlairs
+                        };
+                        
+                        // Extract from sway_history if present
+                        if (data.sway_history && data.sway_history.length > 0) {
+                            const lastEntry = data.sway_history[data.sway_history.length - 1];
+                            payload.home_sway = lastEntry.home_sway;
+                            payload.away_sway = lastEntry.away_sway;
+                            const totalSway = lastEntry.home_sway + lastEntry.away_sway;
+                            payload.sway_ratio = totalSway > 0 ? (lastEntry.home_sway / totalSway) * 100 : 50;
+                        }
+                        
+                        const response = await fetch('/api/predict-risk', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        const resData = await response.json();
+                        loading.classList.add('hidden');
+                        results.classList.remove('hidden');
+                        
+                        // Simple helper to parse basic markdown format returned by the SFT model
+                        let text = resData.risk_analysis || "";
+                        text = text
+                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-400 font-bold">$1</strong>')
+                            .replace(/`(.*?)`/g, '<code class="bg-gray-800 text-yellow-300 px-1.5 py-0.5 rounded font-mono text-xs">$1</code>')
+                            .replace(/\n\n/g, '<br/><br/>');
+                            
+                        results.innerHTML = `
+                            <div class="flex items-center justify-between border-b border-purple-500/20 pb-2 mb-3">
+                                <span class="text-xs font-black uppercase text-purple-400 tracking-widest font-mono flex items-center gap-1.5">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
+                                    Enterprise Model Evaluation Report
+                                </span>
+                                <span class="bg-purple-900/40 text-purple-300 text-[10px] px-2 py-0.5 rounded-full border border-purple-500/10 font-bold font-mono">
+                                    ${resData.mode || 'Vertex AI'}
+                                </span>
+                            </div>
+                            <div class="space-y-2 text-gray-300 leading-relaxed font-sans">
+                                ${text}
+                            </div>
+                        `;
+                    } catch (err) {
+                        loading.classList.add('hidden');
+                        results.classList.remove('hidden');
+                        results.innerHTML = `<span class="text-red-400 font-bold font-mono">Failed to fetch risk evaluation: ${err.message}</span>`;
+                    } finally {
+                        runRiskBtn.disabled = false;
+                    }
+                };
             }
             
             document.getElementById('demographics-modal').classList.remove('hidden');

@@ -276,6 +276,59 @@ def get_match_history():
     except Exception as e:
         return CLOUD_CACHE.get("history", [])
 
+TUNED_MODEL_ID = "projects/716142539353/locations/us-central1/models/5190750964021198848@1"
+
+@app.post("/api/predict-risk")
+async def predict_risk(payload: dict):
+    home_team = payload.get("home_team", "Unknown")
+    away_team = payload.get("away_team", "Unknown")
+    home_sway = float(payload.get("home_sway", 0.0))
+    away_sway = float(payload.get("away_sway", 0.0))
+    sway_ratio = float(payload.get("sway_ratio", 50.0))
+    
+    home_fans = float(payload.get("home_fans", 45.0))
+    away_fans = float(payload.get("away_fans", 40.0))
+    neutral_fans = float(payload.get("neutral_fans", 15.0))
+    
+    # Safe team format
+    home_name = home_team.replace("_", " ").title()
+    away_name = away_team.replace("_", " ").title()
+        
+    prompt = (
+        f"Analyze the following real-time fan sentiment metrics and demographic distributions to project the match winner and optimize betting odds risk allocation.\n\n"
+        f"Match: {home_name} vs {away_name}\n"
+        f"Sway Ratio: {sway_ratio:.1f}% Home\n"
+        f"Demographics: Home Fans ({home_fans:.1f}%), Away Fans ({away_fans:.1f}%), Neutrals ({neutral_fans:.1f}%)\n"
+        f"Final Pre-Game Sentiment: Home ({home_sway:.3f}), Away ({away_sway:.3f})"
+    )
+    
+    try:
+        from google.cloud import aiplatform
+        aiplatform.init(project="716142539353", location="us-central1")
+        endpoint = aiplatform.Endpoint(TUNED_MODEL_ID)
+        response = endpoint.predict(instances=[{"prompt": prompt}])
+        prediction_text = response.predictions[0]
+        return {"risk_analysis": prediction_text, "mode": "Vertex Live"}
+    except Exception:
+        # Emulation Fallback
+        predicted_winner = home_name if home_sway > away_sway else away_name
+        sentiment_diff = abs(home_sway - away_sway)
+        defensive_variance = max(10, min(18, int(sentiment_diff * 40 + 10)))
+        confidence = max(55.0, min(98.0, 50.0 + sentiment_diff * 120.0))
+        
+        fallback_text = (
+            f"**Predicted Winner**: {predicted_winner}\n\n"
+            f"**Analysis**: The community supporter sentiment intensity for {predicted_winner} demonstrated a positive average polarity "
+            f"differential of `{sentiment_diff:.3f}` relative to their opponent, indicating robust pre-match network momentum. "
+            f"Additionally, active supporter cohort counts and flair allegiances strongly back {predicted_winner} with "
+            f"{home_fans if predicted_winner == home_name else away_fans:.1f}% of total active participants, locking in "
+            f"quantifiable pre-game optimism.\n\n"
+            f"**Risk Management Recommendation**: Adjust match opening odds to favor {predicted_winner} by a defensive variance "
+            f"of `{defensive_variance}%` to mitigate late-stage sharp crowd momentum liability. "
+            f"Confidence rating is evaluated at `{confidence:.1f}%`."
+        )
+        return {"risk_analysis": fallback_text, "mode": "Local Emulation Fallback"}
+
 
 if __name__ == "__main__":
     import uvicorn
