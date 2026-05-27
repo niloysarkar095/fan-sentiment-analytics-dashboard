@@ -276,7 +276,7 @@ def get_match_history():
     except Exception as e:
         return CLOUD_CACHE.get("history", [])
 
-TUNED_MODEL_ID = "projects/716142539353/locations/us-central1/models/5190750964021198848@1"
+TUNED_MODEL_ID = "projects/716142539353/locations/us-central1/models/5190750964021198848"
 
 @app.post("/api/predict-risk")
 async def predict_risk(payload: dict):
@@ -304,13 +304,23 @@ async def predict_risk(payload: dict):
     
     try:
         from google.cloud import aiplatform
-        aiplatform.init(project="716142539353", location="us-central1")
-        endpoint = aiplatform.Endpoint(TUNED_MODEL_ID)
-        response = endpoint.predict(instances=[{"prompt": prompt}])
-        prediction_text = response.predictions[0]
+        import vertexai
+        from vertexai.generative_models import GenerativeModel, Content, Part
+        
+        # Explicitly initialize Vertex AI SDK with the project and region
+        vertexai.init(project="716142539353", location="us-central1")
+        
+        # Instantiate GenerativeModel using the exact fine-tuned tuned resource path
+        model = GenerativeModel(TUNED_MODEL_ID)
+        contents = [Content(role="user", parts=[Part.from_text(prompt)])]
+        response = model.generate_content(contents)
+        prediction_text = response.text
         return {"risk_analysis": prediction_text, "mode": "Vertex Live"}
-    except Exception:
-        # Emulation Fallback
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        
+        # Determine fallback predictor details
         predicted_winner = home_name if home_sway > away_sway else away_name
         sentiment_diff = abs(home_sway - away_sway)
         defensive_variance = max(10, min(18, int(sentiment_diff * 40 + 10)))
